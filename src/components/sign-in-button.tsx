@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Github, LogOut } from "lucide-react";
 import SignedOutButton from "./sign-out-button";
 
-
 function SignInButton() {
   const { signIn, signOut } = useAuthActions();
 

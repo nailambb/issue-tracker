@@ -1,8 +1,14 @@
-import { query, mutation, internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import {
+  query,
+  mutation,
+  internalMutation,
+  type MutationCtx,
+} from "./_generated/server";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "./users";
+import type { Doc, Id } from "./_generated/dataModel";
 
 const CASCADE_DELETE_BATCH_SIZE = 100;
 
@@ -60,6 +66,7 @@ export const remove = mutation({
     id: v.id("projects"),
   },
   handler: async (ctx, args) => {
+    await assertProjectOwner(ctx, args.id);
     await ctx.db.patch(args.id, { deletedAt: Date.now() });
   },
 });
@@ -88,3 +95,23 @@ export const deleteProjectCascade = internalMutation({
     await ctx.db.delete(args.id);
   },
 });
+
+/**
+ * Guard used by mutations that should only run for a project's owner.
+ * Loads the project, asserts the current user owns it, and returns the row
+ * so the caller can reuse it without a second `ctx.db.get`.
+ */
+export async function assertProjectOwner(
+  ctx: MutationCtx,
+  projectId: Id<"projects">,
+): Promise<Doc<"projects">> {
+  const user = await getCurrentUser(ctx);
+  const project = await ctx.db.get(projectId);
+  if (project === null || project.deletedAt !== undefined) {
+    throw new ConvexError("Project not found");
+  }
+  if (project.ownerId !== user._id) {
+    throw new ConvexError("Only the project owner can do this");
+  }
+  return project;
+}

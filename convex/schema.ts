@@ -28,4 +28,3 @@ export default defineSchema({
     ),
   }).index("by_project", ["projectId"]),
 });
-

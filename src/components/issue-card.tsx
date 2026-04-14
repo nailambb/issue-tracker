@@ -15,6 +15,7 @@ import useUpdateIssueStatus from "@/hooks/use-update-issue-status";
 import EditIssueDialog from "@/components/edit-issue-dialog";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { cn } from "@/lib/utils";
 
 type IssueCardProps = {
   issue: Doc<"issues">;
@@ -27,12 +28,20 @@ function IssueCard({ issue, isOverlay }: IssueCardProps) {
   const currentUser = useQuery(api.users.currentUser);
   const [editOpen, setEditOpen] = useState(false);
 
-  const isCreator = currentUser?._id === issue.creatorId;
-  const canEditOrDelete = isCreator && issue.status === "todo";
+  const project = useQuery(api.projects.get, { id: issue.projectId });
+
+  const isCreator = currentUser?._id === issue.creatorId; // existing check
+  const isProjectOwner =
+    currentUser !== undefined &&
+    currentUser !== null &&
+    project !== undefined &&
+    project !== null &&
+    currentUser._id === project.ownerId;
+  const canEditOrDelete = isCreator && issue.status === "todo"; // existing check
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: issue._id,
-    disabled: isOverlay,
+    disabled: isOverlay || !isProjectOwner,
   });
 
   return (
@@ -43,7 +52,9 @@ function IssueCard({ issue, isOverlay }: IssueCardProps) {
       >
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <CardTitle
-            className="flex-1 cursor-grab text-sm font-medium leading-snug active:cursor-grabbing"
+            className={cn("flex-1 text-sm font-medium leading-snug", {
+              "cursor-grab active:cursor-grabbing": isProjectOwner,
+            })}
             {...listeners}
             {...attributes}
           >
@@ -55,8 +66,8 @@ function IssueCard({ issue, isOverlay }: IssueCardProps) {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {issue.status !== "todo" && (
+            <DropdownMenuContent align="end">
+              {isProjectOwner && issue.status !== "todo" && (
                 <DropdownMenuItem
                   onClick={() =>
                     updateStatus({ id: issue._id, status: "todo" })
@@ -65,7 +76,7 @@ function IssueCard({ issue, isOverlay }: IssueCardProps) {
                   Move to To Do
                 </DropdownMenuItem>
               )}
-              {issue.status !== "in-progress" && (
+              {isProjectOwner && issue.status !== "in-progress" && (
                 <DropdownMenuItem
                   onClick={() =>
                     updateStatus({ id: issue._id, status: "in-progress" })
@@ -74,7 +85,7 @@ function IssueCard({ issue, isOverlay }: IssueCardProps) {
                   Move to In Progress
                 </DropdownMenuItem>
               )}
-              {issue.status !== "done" && (
+              {isProjectOwner && issue.status !== "done" && (
                 <DropdownMenuItem
                   onClick={() =>
                     updateStatus({ id: issue._id, status: "done" })
@@ -83,9 +94,9 @@ function IssueCard({ issue, isOverlay }: IssueCardProps) {
                   Move to Done
                 </DropdownMenuItem>
               )}
+              {isProjectOwner && canEditOrDelete && <DropdownMenuSeparator />}
               {canEditOrDelete && (
                 <>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setEditOpen(true)}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
